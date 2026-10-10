@@ -44,12 +44,6 @@
     color: var(--accent);
     letter-spacing: 0.5px;
   }
-  #streak-row {
-    margin-top: 4px;
-    font-size: 15px;
-    color: #888;
-    min-height: 18px;
-  }
   #objects-area {
     flex: 1 1 auto;
     display: flex;
@@ -275,13 +269,12 @@
     font-size: 15px;
   }
   .choice-row {
-    display: flex;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(90px, 1fr));
     gap: 8px;
-    flex-wrap: wrap;
   }
   .choice-btn {
-    flex: 1;
-    min-width: 60px;
+    min-width: 0;
     padding: 10px 6px;
     border-radius: 14px;
     border: 2px solid #ddd;
@@ -385,7 +378,6 @@
 <div id="app">
   <div id="top-bar">
     <div id="title">כמה יש?</div>
-    <div id="streak-row"></div>
   </div>
 
   <div id="objects-area">
@@ -414,8 +406,8 @@
     <div class="setting-group">
       <label>סוג משחק</label>
       <div class="choice-row" id="mode-choices">
-        <button class="choice-btn" data-mode="count2num">כמות→מספר</button>
-        <button class="choice-btn" data-mode="num2count">מספר→כמות</button>
+        <button class="choice-btn" data-mode="count2num">לפי תמונות</button>
+        <button class="choice-btn" data-mode="num2count">לפי מספר</button>
         <button class="choice-btn" data-mode="mixed">מעורב</button>
       </div>
     </div>
@@ -441,7 +433,7 @@
         <button id="rec-import">ייבוא מקובץ</button>
       </div>
       <input type="file" id="rec-import-input" accept="application/json" style="display:none;">
-      <div id="rec-mic-hint">הקליטו את עצמכם אומרים כל מספר, ולחצו "ייצוא" כדי לשלוח את ההקלטות גם לטלפון של אמא וסבא</div>
+      <div id="rec-mic-hint">הקליטו את עצמכם אומרים כל מספר. רוצים שהקול הזה ישמע אצל כולם אוטומטית, בכל טלפון? לחצו "ייצוא", ושלחו לנו כאן בצ'אט את הקובץ שירד — נטמיע אותו באתר כברירת מחדל לכולם</div>
     </div>
     <button id="settings-close">סגור ושחק!</button>
     <div id="voice-hint">גלגל השיניים ⚙️ בפינה פותח את ההגדרות האלה</div>
@@ -454,7 +446,7 @@
 
   // ---------- Config / state ----------
   var STORAGE_KEY = "counting-game-settings-v1";
-  var settings = Object.assign({ range: 5, count: 3, voice: "on", mode: "mixed" }, loadSettings());
+  var settings = Object.assign({ range: 5, count: 3, voice: "on", mode: "count2num" }, loadSettings());
 
   var HEBREW_NUMBERS = ["", "אחת", "שתיים", "שלוש", "ארבע", "חמש", "שש", "שבע", "שמונה", "תשע"];
   var EMOJIS = ["🍉","🍎","🐶","🚗","⭐","🎈","🦋","🍌","🐱","🌸","🐠","🍓","🚀","🐢","🍪","🐘","⚽","🦄","🌼","🐥"];
@@ -467,7 +459,6 @@
   var objectsGrid = document.getElementById("objects-grid");
   var numberDisplay = document.getElementById("number-display");
   var answersArea = document.getElementById("answers-area");
-  var streakRow = document.getElementById("streak-row");
   var confettiLayer = document.getElementById("confetti-layer");
   var rewardOverlay = document.getElementById("reward-overlay");
   var rewardText = document.getElementById("reward-text");
@@ -497,6 +488,22 @@
     try { localStorage.setItem(REC_STORAGE_KEY, JSON.stringify(recordings)); } catch (e) {
       alert("אין מספיק מקום לשמור הקלטות נוספות במכשיר הזה.");
     }
+  }
+
+  // Shared voice bundled with the site itself (voice-data.json next to index.html), so
+  // EVERY visitor hears the same recorded voice automatically — no per-device recording
+  // needed. A recording made locally in this browser still overrides it on this device.
+  var bundledVoiceLoaded = false;
+  function loadBundledVoice() {
+    return fetch("voice-data.json", { cache: "no-store" })
+      .then(function (res) { return res.ok ? res.json() : {}; })
+      .then(function (bundled) {
+        if (bundled && typeof bundled === "object") {
+          recordings = Object.assign({}, bundled, recordings);
+        }
+      })
+      .catch(function () { /* no bundled voice file yet — fine, robotic voice is used */ })
+      .finally(function () { bundledVoiceLoaded = true; });
   }
 
   // ---------- Speech ----------
@@ -730,7 +737,6 @@
       busy = true;
       btn.classList.add("correct");
       streak++;
-      updateStreakRow();
       launchConfetti();
       announceCorrect(currentAnswer);
       if (streak > 0 && streak % 5 === 0) {
@@ -750,16 +756,6 @@
     }
   }
 
-  function updateStreakRow() {
-    if (streak <= 0) {
-      streakRow.textContent = "";
-      return;
-    }
-    var stars = "";
-    var shown = Math.min(streak, 5);
-    for (var i = 0; i < shown; i++) stars += "⭐";
-    streakRow.textContent = stars + (streak > 5 ? " +" + (streak - 5) : "");
-  }
 
   function showBigReward() {
     var faces = ["🎉", "🏆", "🌈", "🎊", "👏"];
@@ -812,7 +808,7 @@
       numberDisplay.style.display = "";
       numberDisplay.textContent = currentAnswer;
       renderAnswersAsGroups(options, currentEmoji);
-      playWord(currentAnswer);
+      // No auto-speak here on purpose — she should recognize the digit herself.
     } else {
       numberDisplay.style.display = "none";
       objectsGrid.style.display = "grid";
@@ -1077,7 +1073,16 @@
 
   // ---------- Init ----------
   refreshSettingsUI();
-  nextRound();
+  // Start the first round only once the shared voice file has had a chance to load
+  // (or after a short timeout), so round 1 already uses the right voice.
+  var started = false;
+  function startGame() {
+    if (started) return;
+    started = true;
+    nextRound();
+  }
+  loadBundledVoice().then(startGame);
+  setTimeout(startGame, 1200);
 
   // Unlock audio/voices on first touch (iOS requirement)
   document.addEventListener("touchstart", function unlock() {
