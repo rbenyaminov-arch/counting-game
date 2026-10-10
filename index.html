@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <title>לומדים לספור</title>
 <style>
   :root {
@@ -486,9 +489,15 @@
   }
 
   // ---------- Custom voice recordings ----------
+  // `recordings` is this device's own local state: what the recording UI in Settings
+  // shows/plays/exports. `sharedVoice` is the voice bundled with the site itself
+  // (voice-data.json), the same for every visitor everywhere. For actual gameplay
+  // audio, the shared voice always wins over anything old sitting in this device's
+  // local storage — otherwise a phone that was once used to record a test clip would
+  // keep playing that stale clip forever instead of the current shared voice.
   var REC_STORAGE_KEY = "counting-game-recordings-v1";
-  var PRAISE_KEY = "praise";
   var recordings = loadRecordings();
+  var sharedVoice = {};
 
   function loadRecordings() {
     try {
@@ -502,20 +511,15 @@
     }
   }
 
-  // Shared voice bundled with the site itself (voice-data.json next to index.html), so
-  // EVERY visitor hears the same recorded voice automatically — no per-device recording
-  // needed. A recording made locally in this browser still overrides it on this device.
-  var bundledVoiceLoaded = false;
   function loadBundledVoice() {
     return fetch("voice-data.json", { cache: "no-store" })
       .then(function (res) { return res.ok ? res.json() : {}; })
       .then(function (bundled) {
         if (bundled && typeof bundled === "object") {
-          recordings = Object.assign({}, bundled, recordings);
+          sharedVoice = bundled;
         }
       })
-      .catch(function () { /* no bundled voice file yet — fine, robotic voice is used */ })
-      .finally(function () { bundledVoiceLoaded = true; });
+      .catch(function () { /* no bundled voice file yet — fine, robotic voice is used */ });
   }
 
   // ---------- Speech ----------
@@ -574,34 +578,32 @@
     }
   }
 
-  // Plays a number: the parent's own recording if there is one, else the robotic voice
+  // Picks which recorded clip to use for a number: the shared site-wide voice first,
+  // then this device's own local recording, then nothing (robotic voice fallback).
+  function voiceFor(num) {
+    var key = String(num);
+    return sharedVoice[key] || recordings[key] || null;
+  }
+
+  // Plays a number: the shared/local recording if there is one, else the robotic voice
   function playWord(num) {
     if (settings.voice !== "on") return;
-    var key = String(num);
-    if (recordings[key]) {
-      playRecordingAudio(recordings[key]);
+    var clip = voiceFor(num);
+    if (clip) {
+      playRecordingAudio(clip);
     } else {
       speak(HEBREW_NUMBERS[num] || String(num));
     }
   }
 
-  // Plays the "correct!" announcement: recorded number + recorded praise if available
+  // Plays the "correct!" announcement: just the number, recorded voice if there is one
   function announceCorrect(num) {
     if (settings.voice !== "on") return;
-    var key = String(num);
-    if (recordings[key]) {
-      playRecordingAudio(recordings[key], function () {
-        if (recordings[PRAISE_KEY]) {
-          playRecordingAudio(recordings[PRAISE_KEY]);
-        } else {
-          speak("כל הכבוד!");
-        }
-      });
-    } else if (recordings[PRAISE_KEY]) {
-      speak(HEBREW_NUMBERS[num]);
-      playRecordingAudio(recordings[PRAISE_KEY]);
+    var clip = voiceFor(num);
+    if (clip) {
+      playRecordingAudio(clip);
     } else {
-      speak(HEBREW_NUMBERS[num] + "! כל הכבוד!");
+      speak(HEBREW_NUMBERS[num]);
     }
   }
 
@@ -907,7 +909,6 @@
   function recordableKeys() {
     var keys = [];
     for (var n = 1; n <= 9; n++) keys.push({ key: String(n), label: n + " – " + HEBREW_NUMBERS[n] });
-    keys.push({ key: PRAISE_KEY, label: "כל הכבוד!" });
     return keys;
   }
 
