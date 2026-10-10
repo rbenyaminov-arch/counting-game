@@ -67,32 +67,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    cursor: pointer;
-    transition: transform 0.15s;
     filter: drop-shadow(0 3px 3px rgba(0,0,0,0.15));
-  }
-  .obj.bump {
-    animation: bump 0.35s ease;
-  }
-  @keyframes bump {
-    0% { transform: scale(1); }
-    40% { transform: scale(1.35); }
-    100% { transform: scale(1); }
-  }
-  .obj-count-label {
-    position: absolute;
-    background: var(--accent);
-    color: white;
-    font-weight: 800;
-    font-size: 20px;
-    border-radius: 50%;
-    width: 34px;
-    height: 34px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transform: translate(40%, -40%);
-    box-shadow: 0 2px 4px rgba(0,0,0,0.25);
   }
   .obj-wrap {
     position: relative;
@@ -653,52 +628,22 @@
     objectsGrid.style.setProperty("--obj-size", size + "vw");
     objectsGrid.style.gridTemplateRows = "repeat(" + rows.length + ", auto)";
 
-    var idx = 0;
     rows.forEach(function (rowCount) {
       var rowDiv = document.createElement("div");
       rowDiv.style.display = "flex";
       rowDiv.style.justifyContent = "center";
       rowDiv.style.gap = "8px";
       for (var c = 0; c < rowCount; c++) {
-        idx++;
-        (function (orderNum) {
-          var wrap = document.createElement("div");
-          wrap.className = "obj-wrap";
-          var obj = document.createElement("div");
-          obj.className = "obj";
-          obj.textContent = emoji;
-          obj.dataset.order = orderNum;
-          wrap.appendChild(obj);
-          wrap.addEventListener("click", function () {
-            handleObjectTap(wrap, obj, orderNum);
-          });
-          rowDiv.appendChild(wrap);
-        })(idx);
+        var wrap = document.createElement("div");
+        wrap.className = "obj-wrap";
+        var obj = document.createElement("div");
+        obj.className = "obj";
+        obj.textContent = emoji;
+        wrap.appendChild(obj);
+        rowDiv.appendChild(wrap);
       }
       objectsGrid.appendChild(rowDiv);
     });
-  }
-
-  var countingInProgress = false;
-  function handleObjectTap(wrap, obj, orderNum) {
-    if (countingInProgress) return;
-    // quick bump + speak its number in sequence from 1 to orderNum, fun tap feedback
-    obj.classList.remove("bump");
-    void obj.offsetWidth;
-    obj.classList.add("bump");
-
-    // show a little number badge
-    var existing = wrap.querySelector(".obj-count-label");
-    if (existing) existing.remove();
-    var label = document.createElement("div");
-    label.className = "obj-count-label";
-    label.textContent = orderNum;
-    wrap.appendChild(label);
-    setTimeout(function () {
-      if (label.parentNode) label.remove();
-    }, 900);
-
-    playWord(orderNum);
   }
 
   function renderAnswers(options) {
